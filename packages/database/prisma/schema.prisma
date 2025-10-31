@@ -1,0 +1,797 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== CORE MODELS ====================
+
+model User {
+  id               String    @id
+  name             String
+  email            String
+  emailVerified    Boolean   @default(false)
+  image            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  twoFactorEnabled Boolean?  @default(false)
+  role             String?
+  banned           Boolean?  @default(false)
+  banReason        String?
+  banExpires       DateTime?
+  stripeCustomerId String?
+  metadata         Json?
+
+  // Relations
+  sessions        Session[]
+  accounts        Account[]
+  members         Member[]
+  invitations     Invitation[]
+  twoFactors      TwoFactor[]
+  passkeys        Passkey[]
+  agents          Agent[]
+  conversations   Conversation[]
+  dataSources     DataSource[]
+  apiKeys         ApiKey[]
+  AgentPermission AgentPermission[]
+
+  @@map("users")
+}
+
+model Session {
+  id                   String   @id @default(cuid())
+  expiresAt            DateTime
+  token                String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?
+  impersonatedBy       String?
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String?   @unique
+  logo      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  metadata  Json?
+  plan      PlanType? @default(STARTER)
+  settings  Json?
+
+  // Relations
+  members     Member[]
+  invitations Invitation[]
+  agents      Agent[]
+  apiKeys     ApiKey[]
+
+  @@map("organizations")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           MemberRole   @default(MEMBER)
+  permissions    String[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@map("members")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           MemberRole?  @default(MEMBER)
+  status         InviteStatus @default(PENDING)
+  expiresAt      DateTime
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("invitations")
+}
+
+model TwoFactor {
+  id          String   @id @default(cuid())
+  secret      String
+  backupCodes String[]
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("two_factors")
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  name         String?
+  publicKey    String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String    @unique
+  counter      Int
+  deviceType   String?
+  backedUp     Boolean
+  transports   String[]
+  createdAt    DateTime? @default(now())
+  aaguid       String?
+
+  @@map("passkeys")
+}
+
+model ApiKey {
+  id             String          @id @default(cuid())
+  name           String
+  key            String          @unique
+  secret         String?
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions    ApiPermission[]
+  rateLimit      Int?            @default(1000)
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  isActive       Boolean?        @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("api_keys")
+}
+
+// ==================== ADVANCED AGENT MODELS ====================
+
+model Agent {
+  id          String  @id @default(cuid())
+  name        String  @db.VarChar(100)
+  description String? @db.Text
+  language    String  @default("en") @db.VarChar(10)
+
+  // === BASIC AGENT CONFIGURATION ===
+  prompt      String? @db.Text
+  temperature Float?  @default(0.7)
+  maxTokens   Int?    @default(1000)
+  model       String? @default("gpt-4") @db.VarChar(50)
+  provider    String? @default("openai") @db.VarChar(20)
+
+  // === ADVANCED AI CONFIGURATION ===
+  modelName        String?  @default("gpt-4") @db.VarChar(100)
+  apiVersion       String?  @db.VarChar(50)
+  topP             Float?   @default(0.9)
+  frequencyPenalty Float?   @default(0.0)
+  presencePenalty  Float?   @default(0.0)
+  stopSequences    String[]
+
+  // Context Management
+  contextWindow    Int?    @default(8000)
+  maxContextTokens Int?    @default(4000)
+  memoryType       String? @default("sliding") @db.VarChar(20)
+
+  // Reasoning & Strategy
+  reasoningDepth String?  @default("balanced") @db.VarChar(20)
+  chainOfThought Boolean? @default(false)
+  selfReflection Boolean? @default(false)
+
+  // Safety & Alignment
+  safetyLevel    String?  @default("medium") @db.VarChar(20)
+  biasMitigation Boolean? @default(true)
+  factChecking   Boolean? @default(false)
+
+  // Multi-modal Capabilities
+  visionEnabled Boolean? @default(false)
+  audioEnabled  Boolean? @default(false)
+
+  // Cost Optimization
+  tokenOptimization Boolean? @default(true)
+  cacheResponses    Boolean? @default(true)
+  fallbackModel     String?  @db.VarChar(50)
+
+  // === CONTENT CONFIGURATION ===
+  supportedLanguages   String[] // JSON array
+  defaultLanguage      String?  @default("en") @db.VarChar(10)
+  autoDetectLanguage   Boolean? @default(true)
+  conversationStarters String[] // JSON array
+  fallbackMessages     String[] // JSON array
+  escalationTriggers   String?  @db.Text
+  contentFilterLevel   String?  @default("medium") @db.VarChar(20)
+  blockedTerms         String[] // JSON array
+  sensitiveTopics      String[] // JSON array
+  userPersonalization  Boolean? @default(false)
+  rememberConversation Boolean? @default(true)
+  contextWindowSize    Int?     @default(10)
+  allowImages          Boolean? @default(false)
+  allowFiles           Boolean? @default(false)
+  allowVoiceMessages   Boolean? @default(false)
+  maxFileSize          Int?     @default(5) // MB
+  responseTemplates    Json?
+  quickReplies         String[] // JSON array
+
+  // === SECURITY & COMPLIANCE ===
+  dataRetentionDays       Int?     @default(90)
+  autoDeleteConversations Boolean? @default(false)
+  exportConversations     Boolean? @default(true)
+  gdprCompliant           Boolean? @default(true)
+  ccpaCompliant           Boolean? @default(true)
+  hipaaCompliant          Boolean? @default(false)
+  anonymizeUserData       Boolean? @default(false)
+  pseudonymization        Boolean? @default(true)
+  dataEncryption          Boolean? @default(true)
+  apiRateLimit            Int?     @default(1000)
+  concurrentSessions      Int?     @default(10)
+
+  // === VISIBILITY AND ACCESS CONTROL ===
+  isPublic   Boolean         @default(false)
+  isActive   Boolean         @default(true)
+  visibility AgentVisibility @default(PRIVATE)
+
+  // === OWNERSHIP ===
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // === ANALYTICS AND USAGE ===
+  totalChats    Int    @default(0)
+  totalMessages Int    @default(0)
+  totalTokens   Int    @default(0)
+  totalUsers    Int    @default(0)
+  avgRating     Float?
+  totalRevenue  Float? @default(0)
+
+  // === TIMESTAMPS ===
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime?
+
+  // === RELATIONS ===
+  chatInterface    ChatInterface?
+  dataSources      DataSource[]
+  conversations    Conversation[]
+  agentAnalytics   AgentAnalytics[]
+  chats            Chat[]
+  workflows        AgentWorkflow[]
+  knowledgeBases   AgentKnowledgeBase[]
+  integrations     AgentIntegration[]
+  agentPermissions AgentPermission[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([isPublic, isActive])
+  @@index([createdAt])
+  @@index([totalChats])
+  @@map("agents")
+}
+
+model ChatInterface {
+  id      String @id @default(cuid())
+  agentId String @unique
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // === BASIC CHAT WIDGET CUSTOMIZATION ===
+  welcomeMessage  String?  @db.Text
+  placeholderText String?  @default("Type a message...") @db.VarChar(100)
+  primaryColor    String?  @default("#3B82f6")
+  fontSize        Int?     @default(14)
+  position        String?  @default("bottom-right") @db.VarChar(20)
+  isOpenByDefault Boolean? @default(false)
+
+  // === ADVANCED STYLING ===
+  // Color Scheme
+  colorScheme     String? @default("system") @db.VarChar(20)
+  secondaryColor  String? @default("#64748b")
+  accentColor     String? @default("#8b5cf6")
+  backgroundColor String? @default("#ffffff")
+  textColor       String? @default("#1f2937")
+  borderColor     String? @default("#e5e7eb")
+
+  // Typography
+  fontFamily String? @default("Inter, sans-serif") @db.VarChar(100)
+  fontWeight String? @default("normal") @db.VarChar(20)
+  lineHeight Float?  @default(1.5)
+
+  // Layout & Positioning
+  horizontalOffset Int?    @default(20)
+  verticalOffset   Int?    @default(20)
+  width            String? @default("380px") @db.VarChar(50)
+  height           String? @default("600px") @db.VarChar(50)
+  maxWidth         String? @default("90vw") @db.VarChar(50)
+  maxHeight        String? @default("80vh") @db.VarChar(50)
+
+  // Animation & Interactions
+  entranceAnimation String?  @default("slide-in") @db.VarChar(20)
+  messageAnimation  String?  @default("fade-up") @db.VarChar(20)
+  typingIndicator   Boolean? @default(true)
+  readReceipts      Boolean? @default(true)
+  soundEffects      Boolean? @default(false)
+  soundVolume       Int?     @default(50)
+
+  // Advanced UI Components
+  showAvatars         Boolean? @default(true)
+  agentAvatar         String?
+  userAvatar          String?
+  showTimestamps      Boolean? @default(true)
+  showTypingIndicator Boolean? @default(true)
+  messageBubbleStyle  String?  @default("rounded") @db.VarChar(20)
+  showHeader          Boolean? @default(true)
+  showFooter          Boolean? @default(true)
+
+  // Mobile Optimization
+  mobileBreakpoint Int?     @default(768)
+  mobilePosition   String?  @default("bottom") @db.VarChar(20)
+  fullScreenMobile Boolean? @default(false)
+  hideOnMobile     Boolean? @default(false)
+  hideOnTablet     Boolean? @default(false)
+
+  // === BRANDING ===
+  chatTitle    String? @db.VarChar(100)
+  chatIcon     String?
+  companyName  String? @db.VarChar(100)
+  companyLogo  String?
+  brandMessage String? @db.Text
+
+  // === ADVANCED EMBED CONFIGURATION ===
+  embedMethod      String?  @default("floating") @db.VarChar(20)
+  targetDomains    String[] // JSON array
+  allowedOrigins   String[] // JSON array
+  autoShow         Boolean? @default(false)
+  showAfterDelay   Int?     @default(0)
+  showOnExitIntent Boolean? @default(false)
+  showOnScroll     Boolean? @default(false)
+  scrollPercentage Int?     @default(50)
+  displayRules     Json?
+
+  // === INTEGRATION FEATURES ===
+  googleAnalyticsId  String?
+  facebookPixelId    String?
+  googleTagManagerId String?
+  hotjarId           String?
+  customEvents       Json?
+  trackConversions   Boolean? @default(false)
+  webhookUrl         String?
+  webhookEvents      String[] // JSON array
+  apiKey             String?
+
+  // === CUSTOMIZATION ===
+  customCSS        String? @db.Text
+  customHeaderHTML String? @db.Text
+  customFooterHTML String? @db.Text
+  customJavaScript String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chat_interfaces")
+}
+
+model DataSource {
+  id      String @id @default(cuid())
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // === SOURCE CONFIGURATION ===
+  type        DataSourceType @default(TEXT)
+  name        String         @db.VarChar(200)
+  description String?        @db.Text
+
+  // === CONTENT ===
+  content         String?  @db.Text
+  fileUrl         String?
+  fileName        String?  @db.VarChar(200)
+  fileSize        Int?
+  fileType        String?  @db.VarChar(50)
+  websiteUrl      String?
+  scrapeDepth     Int?     @default(1)
+  sitemapUrl      String?
+  includePatterns String[] // JSON array
+  excludePatterns String[] // JSON array
+
+  // === PROCESSING STATUS ===
+  status           DataSourceStatus @default(PROCESSING)
+  tokens           Int?
+  chunks           Int?
+  vectorEmbeddings Boolean?         @default(false)
+  embeddingModel   String?          @db.VarChar(50)
+  error            String?          @db.Text
+  processedAt      DateTime?
+  lastIndexedAt    DateTime?
+
+  // === METADATA ===
+  metadata Json?
+  tags     String[] // JSON array
+
+  // === OWNERSHIP ===
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@map("data_sources")
+}
+
+model Conversation {
+  id      String @id @default(cuid())
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // === SESSION INFORMATION ===
+  sessionId String  @unique @default(cuid())
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // === CONVERSATION DETAILS ===
+  title     String? @db.VarChar(200)
+  summary   String? @db.Text
+  sentiment Float? // -1 to 1
+  category  String? @db.VarChar(50)
+
+  // === USER INFORMATION ===
+  userEmail   String? @db.VarChar(200)
+  userName    String? @db.VarChar(100)
+  userPhone   String? @db.VarChar(20)
+  userCompany String? @db.VarChar(100)
+
+  // === METADATA ===
+  ipAddress  String? @db.VarChar(45)
+  userAgent  String? @db.Text
+  country    String? @db.VarChar(50)
+  city       String? @db.VarChar(50)
+  timezone   String? @db.VarChar(50)
+  language   String? @db.VarChar(10)
+  deviceType String? @db.VarChar(20)
+  browser    String? @db.VarChar(50)
+
+  // === ANALYTICS ===
+  messageCount Int      @default(0)
+  tokenCount   Int      @default(0)
+  wordCount    Int      @default(0)
+  rating       Int? // 1-5
+  feedback     String?  @db.Text
+  resolved     Boolean? @default(false)
+  escalation   Boolean? @default(false)
+  escalatedTo  String? // User ID or team
+
+  // === TIMESTAMPS ===
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastActivityAt DateTime  @default(now())
+  endedAt        DateTime?
+
+  // === RELATIONS ===
+  chats Chat[]
+
+  @@index([agentId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([rating])
+  @@index([resolved])
+  @@map("conversations")
+}
+
+model Chat {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agentId        String
+  agent          Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // === MESSAGE CONTENT ===
+  role      ChatRole @default(USER)
+  content   String   @db.Text
+  tokens    Int?
+  wordCount Int?
+
+  // === MESSAGE METADATA ===
+  messageId String? @unique // For tracking in UI
+  parentId  String? // For thread conversations
+  sequence  Int? // Order in conversation
+
+  // === AI CONFIGURATION ===
+  model       String? @db.VarChar(50)
+  provider    String? @db.VarChar(20)
+  temperature Float?
+  topP        Float?
+
+  // === SOURCES AND CITATIONS ===
+  sources    Json?
+  citations  String[] // JSON array
+  confidence Float?
+
+  // === ATTACHMENTS ===
+  attachments Json? // Array of attachment objects
+
+  // === METADATA ===
+  latency  Int?
+  error    String?   @db.Text
+  isEdited Boolean?  @default(false)
+  editedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([agentId])
+  @@index([role])
+  @@index([createdAt])
+  @@map("chats")
+}
+
+model AgentAnalytics {
+  id      String @id @default(cuid())
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // === TIME PERIOD ===
+  date   DateTime // Daily aggregates
+  period String?  @default("day") @db.VarChar(10) // "hour", "day", "week", "month"
+
+  // === USAGE METRICS ===
+  totalConversations Int @default(0)
+  totalMessages      Int @default(0)
+  totalTokens        Int @default(0)
+  totalUsers         Int @default(0)
+  newUsers           Int @default(0)
+  returningUsers     Int @default(0)
+
+  // === PERFORMANCE METRICS ===
+  avgResponseTime   Float?
+  firstResponseTime Float?
+  resolutionRate    Float?
+  escalationRate    Float?
+  completionRate    Float?
+
+  // === QUALITY METRICS ===
+  avgRating           Float?
+  sentimentScore      Float?
+  userSatisfaction    Float?
+  conversationQuality Float?
+
+  // === BUSINESS METRICS ===
+  conversionRate      Float?
+  leadGenerationCount Int?   @default(0)
+  revenueAttributed   Float?
+  goalsCompleted      Int?   @default(0)
+
+  // === TECHNICAL METRICS ===
+  errorRate             Float?
+  uptimePercentage      Float?
+  latency95thPercentile Float?
+  cacheHitRate          Float?
+
+  // === USER BEHAVIOR ===
+  avgSessionDuration    Int?
+  avgMessagesPerSession Float?
+  bounceRate            Float?
+  retentionRate         Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, date, period])
+  @@index([agentId])
+  @@index([date])
+  @@map("agent_analytics")
+}
+
+// ==================== ADVANCED FEATURE MODELS ====================
+
+model AgentWorkflow {
+  id          String   @id @default(cuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  triggers    Json? // JSON array of trigger conditions
+  actions     Json? // JSON array of actions
+  conditions  Json? // JSON array of conditions
+  isActive    Boolean? @default(true)
+  priority    Int?     @default(1)
+  version     String?  @default("1.0.0")
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([isActive])
+  @@map("agent_workflows")
+}
+
+model AgentKnowledgeBase {
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name            String   @db.VarChar(100)
+  description     String?  @db.Text
+  content         Json? // Structured knowledge content
+  vectorEmbedding Json? // Vector embeddings for semantic search
+  metadata        Json? // Additional metadata
+  version         String?  @default("1.0.0")
+  isActive        Boolean? @default(true)
+  chunkSize       Int?     @default(1000)
+  chunkOverlap    Int?     @default(200)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@map("agent_knowledge_bases")
+}
+
+model AgentIntegration {
+  id          String          @id @default(cuid())
+  agentId     String
+  agent       Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  type        IntegrationType
+  name        String          @db.VarChar(100)
+  config      Json? // Integration configuration
+  credentials Json? // Encrypted credentials
+  isActive    Boolean?        @default(true)
+  lastSync    DateTime?
+  syncStatus  String?         @default("idle") @db.VarChar(20)
+  error       String?         @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([type])
+  @@map("agent_integrations")
+}
+
+model AgentPermission {
+  id          String    @id @default(cuid())
+  agentId     String
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId      String?
+  role        String    @db.VarChar(50)
+  permissions String[] // JSON array
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([userId])
+  @@map("agent_permissions")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MemberRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum ApiPermission {
+  READ
+  WRITE
+  DELETE
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum AgentVisibility {
+  PRIVATE
+  ORGANIZATION
+  PUBLIC
+  UNLISTED
+}
+
+enum DataSourceType {
+  TEXT
+  FILE
+  WEBSITE
+  NOTION
+  GOOGLE_DRIVE
+  SALESFORCE
+  ZENDESK
+  CUSTOM
+}
+
+enum DataSourceStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  DELETED
+}
+
+enum ChatRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  FUNCTION
+  TOOL
+}
+
+enum IntegrationType {
+  CRM
+  HELPDesk
+  CALENDAR
+  PAYMENT
+  EMAIL
+  SLACK
+  DISCORD
+  TEAMS
+  CUSTOM
+}

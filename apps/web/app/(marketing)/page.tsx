@@ -12,6 +12,7 @@ import { Button } from "@workspace/ui/components/button";
 import { AnimatedShinyText } from "@workspace/ui/components/marketing/AnimatedShinyText";
 import { ArrowRightIcon } from "lucide-react";
 import { FeaturesSection } from "@/components/ui/marketing/features-section";
+import { useSession } from "@/config/auth/client";
 
 export default function GridPatternDashed() {
   return (
