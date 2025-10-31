@@ -96,8 +96,8 @@ export function initAuth(options: typeof authConfig): AuthInstance {
             } : {}),
 
             google: {
-                clientId: options.googleClientId ?? "",
-                clientSecret: options.googleClientSecret ?? "",
+                clientId: options.googleClientId!,
+                clientSecret: options.googleClientSecret!,
             },
             ...(options.microsoftClientId && options.microsoftClientSecret ? {
                 microsoft: {
