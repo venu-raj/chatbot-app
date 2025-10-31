@@ -16,6 +16,9 @@ import { MaxWidthWrapper } from "@workspace/ui/components/global/max-width-wrapp
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
 import { LayoutGroup } from "motion/react";
+import { useSession } from "@/config/auth/client";
+import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { LoadingSpinner } from "@workspace/ui/components/global/loading-spinner";
 
 export type NavTheme = "light" | "dark";
 
@@ -98,6 +101,7 @@ export function Nav({
   if (staticDomain) {
     domain = staticDomain;
   }
+  const { data: user, isPending } = useSession();
 
   const layoutGroupId = useId();
 
@@ -183,7 +187,7 @@ export function Nav({
               </NavigationMenuPrimitive.Root>
 
               <div className="hidden grow basis-0 justify-end gap-2 lg:flex">
-                {/* {session && Object.keys(session).length > 0 ? (
+                {user && Object.keys(user).length > 0 ? (
                   <Link
                     href={"/"}
                     className={cn(
@@ -194,31 +198,41 @@ export function Nav({
                   >
                     Dashboard
                   </Link>
-                ) : !isLoading ? (
+                ) : !isPending ? (
                   <>
                     <Link
-                      href="https://app.dub.co/login"
+                      href="/login"
                       className={cn(
                         buttonVariants({ variant: "secondary" }),
                         "flex h-8 items-center rounded-lg border px-4 text-sm",
-                        "dark:border-white/10 dark:bg-black dark:text-white dark:hover:bg-neutral-900"
+                        "dark:border-white/10 dark:bg-black dark:text-white dark:hover:bg-neutral-900",
+                        "relative" // Add relative positioning for loading state
                       )}
                     >
-                      Log in
+                      <span className="flex items-center justify-center">
+                        Log in
+                      </span>
                     </Link>
                     <Link
-                      href="https://app.dub.co/register"
+                      href="/register"
                       className={cn(
-                        buttonVariants({ variant: "primary" }),
+                        buttonVariants({ variant: "default" }),
                         "flex h-8 items-center rounded-lg border px-4 text-sm",
-                        "dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50 dark:hover:ring-white/10"
+                        "dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50 dark:hover:ring-white/10",
+                        "relative" // Add relative positioning for loading state
                       )}
                     >
-                      Sign up
+                      <span className="flex items-center justify-center">
+                        Sign up
+                      </span>
                     </Link>
                   </>
-                ) : null} */}
-                <Link
+                ) : (
+                  <>
+                    <LoadingSpinner />
+                  </>
+                )}
+                {/* <Link
                   href={"/"}
                   className={cn(
                     // buttonVariants({ variant: "primary" }),
@@ -227,7 +241,7 @@ export function Nav({
                   )}
                 >
                   Dashboard
-                </Link>
+                </Link> */}
               </div>
             </div>
           </MaxWidthWrapper>

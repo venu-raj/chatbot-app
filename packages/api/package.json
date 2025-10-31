@@ -1,0 +1,23 @@
+{
+  "name": "@workspace/api",
+  "version": "0.0.0",
+   "exports": "./src/index.ts",
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@turbo/gen": "^2.5.5",
+    "@types/node": "^20.19.9",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*"
+  },
+  "dependencies": {
+    "@trpc/server": "^11.5.1",
+    "@workspace/auth": "workspace:*",
+    "@workspace/database": "workspace:*",
+    "superjson": "^2.2.2",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.9.2",
+    "zod": "^3.25.76"
+  }
+}
