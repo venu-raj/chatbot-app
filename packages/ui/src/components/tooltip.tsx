@@ -58,6 +58,7 @@ export function Tooltip({
         onBlur={() => {
           setOpen(false);
         }}
+        className=" cursor-pointer"
       >
         {children}
       </TooltipPrimitive.Trigger>
@@ -65,14 +66,14 @@ export function Tooltip({
         <TooltipPrimitive.Content
           sideOffset={8}
           side={side}
-          className="animate-slide-up-fade pointer-events-auto z-[99] items-center overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm"
+          className="animate-slide-up-fade pointer-events-auto z-[99] items-center overflow-hidden rounded-xl border border-primary/20 bg-background shadow-sm"
           collisionPadding={0}
           {...rest}
         >
           {typeof content === "string" ? (
             <span
               className={cn(
-                "block max-w-xs text-pretty px-4 py-2 text-center text-sm text-neutral-700",
+                "block max-w-xs text-pretty px-4 py-2 text-center text-sm text-primary",
                 contentClassName
               )}
             >

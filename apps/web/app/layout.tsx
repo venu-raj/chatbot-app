@@ -1,5 +1,6 @@
-import { geistMono, inter, satoshi } from "@/styles/fonts";
 import "@workspace/ui/globals.css";
+
+import { geistMono, inter, satoshi } from "@/styles/fonts";
 import { Providers } from "@/components/providers";
 import { cn } from "@workspace/utils/functions/cn";
 
