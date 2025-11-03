@@ -16,9 +16,8 @@ import { MaxWidthWrapper } from "@workspace/ui/components/global/max-width-wrapp
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
 import { LayoutGroup } from "motion/react";
-import { useSession } from "@/config/auth/client";
-import { Button, buttonVariants } from "@workspace/ui/components/button";
-import { LoadingSpinner } from "@workspace/ui/components/global/loading-spinner";
+import { useListOrganizations, useSession } from "@/config/auth/client";
+import { buttonVariants } from "@workspace/ui/components/button";
 
 export type NavTheme = "light" | "dark";
 
@@ -102,6 +101,9 @@ export function Nav({
     domain = staticDomain;
   }
   const { data: user, isPending } = useSession();
+  const { data } = useListOrganizations();
+
+  console.log(data);
 
   const layoutGroupId = useId();
 
@@ -189,10 +191,11 @@ export function Nav({
               <div className="hidden grow basis-0 justify-end gap-2 lg:flex">
                 {user && Object.keys(user).length > 0 ? (
                   <Link
-                    href={"/"}
+                    href={"/dashboard/overview"}
                     className={cn(
                       buttonVariants({ variant: "primary" }),
                       "flex h-8 items-center rounded-lg border px-4 text-sm",
+                      "text-white",
                       "dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50 dark:hover:ring-white/10"
                     )}
                   >
@@ -203,8 +206,8 @@ export function Nav({
                     <Link
                       href="/login"
                       className={cn(
-                        buttonVariants({ variant: "secondary" }),
-                        "flex h-8 items-center rounded-lg border px-4 text-sm",
+                        buttonVariants({ variant: "outline" }),
+                        "flex h-8 items-center rounded-lg bg-transparent border px-4 text-sm",
                         "dark:border-white/10 dark:bg-black dark:text-white dark:hover:bg-neutral-900",
                         "relative" // Add relative positioning for loading state
                       )}
@@ -229,19 +232,12 @@ export function Nav({
                   </>
                 ) : (
                   <>
-                    <LoadingSpinner />
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-20 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-8 w-20 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                    </div>
                   </>
                 )}
-                {/* <Link
-                  href={"/"}
-                  className={cn(
-                    // buttonVariants({ variant: "primary" }),
-                    "flex h-8 items-center rounded-lg border px-4 text-sm",
-                    "dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50 dark:hover:ring-white/10"
-                  )}
-                >
-                  Dashboard
-                </Link> */}
               </div>
             </div>
           </MaxWidthWrapper>
