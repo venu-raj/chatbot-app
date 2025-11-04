@@ -1,6 +1,6 @@
 "use client";
 
-import { CreateWorkspaceForm } from "@/components/onboarding/workspaces/create-workspace-form";
+import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-form";
 import { useOnboardingProgress } from "../../use-onboarding-progress";
 
 export function Form() {

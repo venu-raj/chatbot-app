@@ -90,7 +90,7 @@ const NAV_GROUPS: SidebarNavGroups<SidebarNavData> = ({
     description: "Manage your dashboard.",
     learnMoreHref: "https://dub.co/dashboard",
     icon: Compass,
-    href: slug ? `/${slug}/dashboard` : "/dashboard",
+    href: slug ? `/${slug}/overview` : "",
     active:
       !!slug &&
       pathname.startsWith(`/${slug}`) &&
@@ -344,7 +344,7 @@ const NAV_AREAS: SidebarNavAreas<SidebarNavData> = {
   // Workspace settings
   workspaceSettings: ({ slug }) => ({
     title: "Settings",
-    backHref: `/dashboard`,
+    backHref: `/${slug}/overview`,
     content: [
       {
         name: "Workspace",
@@ -366,9 +366,9 @@ const NAV_AREAS: SidebarNavAreas<SidebarNavData> = {
             href: `/${slug}/settings/domains`,
           },
           {
-            name: "People",
+            name: "Members",
             icon: Users6,
-            href: `/${slug}/settings/people`,
+            href: `/${slug}/settings/members`,
           },
           {
             name: "Integrations",
@@ -423,16 +423,27 @@ const NAV_AREAS: SidebarNavAreas<SidebarNavData> = {
   // User settings
   userSettings: ({ slug }) => ({
     title: "Settings",
-    backHref: `/dashboard`,
+    backHref: `/${slug}`,
+    hideSwitcherIcons: true,
     content: [
       {
-        name: "Bot Overview",
+        name: "Account",
         items: [
           {
-            name: "General Info",
+            name: "General",
             icon: Gear2,
             href: "/account/settings",
             exact: true,
+          },
+          {
+            name: "Security",
+            icon: ShieldCheck,
+            href: "/account/settings/security",
+          },
+          {
+            name: "Referrals",
+            icon: Gift,
+            href: "/account/settings/referrals",
           },
         ],
       },
@@ -554,20 +565,16 @@ export function AppSidebarNav({
   console.log({ slug, pathname, agentId });
 
   const currentArea = useMemo(() => {
-    return pathname.startsWith("/account")
+    return pathname.startsWith("/account/settings")
       ? "userSettings"
       : pathname.startsWith(`/${slug}/settings`)
         ? "workspaceSettings"
-        : // hacky fix for guides because slug is undefined at render time
-          // TODO: remove when we migrate to Next.js 15 + PPR
-          pathname.endsWith("/guides") ||
-            pathname.includes("/guides/") ||
+        : pathname.includes("/program/campaigns/") ||
             pathname.includes("/program/messages/") ||
-            // this one is for the payout success page
             pathname.endsWith("/program/payouts/success")
           ? null
-          : pathname.startsWith(`/${slug}/agents/${agentId}`)
-            ? "default"
+          : pathname.startsWith(`/${slug}/program`)
+            ? "program"
             : "default";
   }, [slug, pathname]);
 
