@@ -12,6 +12,8 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@workspace/ui/components/skeleton";
 import { Session } from "@/config/auth/auth-types";
+import { authClient } from "@/config/auth/client";
+import { useCreateWorkspaceModal } from "@/components/modals/create-workspace-modal";
 
 // Local storage utility for workspace persistence
 const workspaceStorage = {
@@ -31,38 +33,81 @@ export function WorkspaceDropdown() {
   const { slug: currentSlug } = useParams() as { slug?: string };
   const router = useRouter();
 
-  // Enhanced slug persistence with localStorage fallback
   const [slug, setSlug] = useState(currentSlug);
+  const [isSettingActive, setIsSettingActive] = useState(false);
 
+  // Set active workspace using Better Auth
+  const setActiveWorkspace = useCallback(
+    async (workspaceSlug: string, workspaceId: string) => {
+      if (isSettingActive) return;
+
+      try {
+        setIsSettingActive(true);
+
+        const { data, error } = await authClient.organization.setActive({
+          organizationId: workspaceId,
+          organizationSlug: workspaceSlug,
+        });
+
+        if (error) {
+          console.error("Failed to set active workspace:", error);
+          // Fallback to local storage if Better Auth fails
+          workspaceStorage.setLastSelected(workspaceSlug);
+          setSlug(workspaceSlug);
+          return;
+        }
+
+        // Success - update local state
+        workspaceStorage.setLastSelected(workspaceSlug);
+        setSlug(workspaceSlug);
+
+        // Refresh the session to get updated organization context
+        // This depends on your session management implementation
+        // await refreshSession();
+      } catch (error) {
+        console.error("Error setting active workspace:", error);
+        // Fallback to local storage
+        workspaceStorage.setLastSelected(workspaceSlug);
+        setSlug(workspaceSlug);
+      } finally {
+        setIsSettingActive(false);
+      }
+    },
+    [isSettingActive]
+  );
+
+  // Enhanced slug persistence with Better Auth integration
   useEffect(() => {
     if (currentSlug) {
-      setSlug(currentSlug);
+      // setSlug(currentSlug);
       workspaceStorage.setLastSelected(currentSlug);
     } else if (!slug && workspaces && workspaces.length > 0) {
-      // Fallback to last selected workspace from localStorage
+      // Fallback to last selected workspace
       const lastSelected = workspaceStorage.getLastSelected();
       const validWorkspace =
         workspaces.find((w) => w.slug === lastSelected) || workspaces[0];
 
       if (validWorkspace && validWorkspace.slug !== currentSlug) {
-        setSlug(validWorkspace.slug);
-        workspaceStorage.setLastSelected(validWorkspace.slug);
+        // Use Better Auth to set active workspace
+        setActiveWorkspace(validWorkspace.slug, validWorkspace.id);
+
         // Optionally redirect to the workspace if no current slug
-        if (!currentSlug) {
-          router.push(`/${validWorkspace.slug}`);
-        }
+        // if (!currentSlug) {
+        //   router.push(`/${validWorkspace.slug}/tttttt`);
+        // }
       }
     }
-  }, [currentSlug, workspaces, slug, router]);
+  }, [currentSlug, workspaces, slug, router, setActiveWorkspace]);
 
   const selected = useMemo(() => {
     // Show loading state
-    if (sessionStatus === "loading" || isLoading) {
+    if (sessionStatus === "loading" || isLoading || isSettingActive) {
       return {
         name: "Loading...",
         slug: "/",
         image: "",
         plan: "free" as const,
+        id: "",
       };
     }
 
@@ -84,6 +129,7 @@ export function WorkspaceDropdown() {
         slug: "/",
         image: session.user.image || "",
         plan: "free" as const,
+        id: "personal",
       };
     }
 
@@ -93,37 +139,32 @@ export function WorkspaceDropdown() {
       slug: "/",
       image: "",
       plan: "free" as const,
+      id: "",
     };
-  }, [slug, workspaces, session, sessionStatus, isLoading]);
+  }, [slug, workspaces, session, sessionStatus, isLoading, isSettingActive]);
 
   const [openPopover, setOpenPopover] = useState(false);
 
-  // Show loading skeleton
-  // if (sessionStatus === "loading" || isLoading) {
-  //   return <Skeleton className="h-12 w-12 rounded-full" />;
-  // }
+  // Get the create workspace modal
+  const { setShowCreateWorkspaceModal, CreateWorkspaceModal } =
+    useCreateWorkspaceModal();
 
   return (
     <div>
+      {/* Render the modal component */}
+      <CreateWorkspaceModal />
+
       <Popover
         content={
-          <>
-            <WorkspaceList
-              session={session}
-              selected={selected}
-              workspaces={workspaces || []}
-              setOpenPopover={setOpenPopover}
-              isLoading={isLoading}
-            />
-            {/* <Link
-              href={`/${selected.slug}/settings/people`}
-              className="flex w-full items-center rounded-md px-2 py-1.5 text-neutral-700 outline-none transition-all duration-75 hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-black/50 active:bg-neutral-200/80"
-              onClick={() => setOpenPopover(false)}
-            >
-              <UserPlus className="size-4 text-neutral-500" />
-              <span className="block truncate text-sm">Invite members</span>
-            </Link> */}
-          </>
+          <WorkspaceList
+            session={session}
+            selected={selected}
+            workspaces={workspaces || []}
+            setOpenPopover={setOpenPopover}
+            isLoading={isLoading || isSettingActive}
+            onWorkspaceSelect={setActiveWorkspace}
+            onCreateWorkspace={() => setShowCreateWorkspaceModal(true)} // Pass the create function
+          />
         }
         side="right"
         align="start"
@@ -135,10 +176,14 @@ export function WorkspaceDropdown() {
           className={cn(
             "flex size-11 items-center justify-center rounded-lg p-1.5 text-left text-sm transition-all duration-75",
             "hover:bg-bg-inverted/5 active:bg-bg-inverted/10 data-[state=open]:bg-bg-inverted/10",
-            "outline-none focus-visible:ring-2 focus-visible:ring-black/50"
+            "outline-none focus-visible:ring-2 focus-visible:ring-black/50",
+            isSettingActive && "opacity-50 cursor-not-allowed"
           )}
+          disabled={isSettingActive}
         >
-          {selected.image ? (
+          {isSettingActive ? (
+            <div className="size-7 flex-none shrink-0 rounded-full bg-neutral-200 animate-pulse" />
+          ) : selected.image ? (
             <BlurImage
               src={selected.image}
               referrerPolicy="no-referrer"
@@ -171,22 +216,26 @@ function WorkspaceList({
   setOpenPopover,
   isLoading,
   session,
-  sessionStatus,
+  onWorkspaceSelect,
+  onCreateWorkspace, // Added prop for creating workspace
 }: {
   session: Session;
-  sessionStatus?: boolean;
   selected: {
     name: string;
     slug: string;
     image: string;
+    id: string;
   };
   workspaces: WorkspaceProps[];
   setOpenPopover: (open: boolean) => void;
   isLoading?: boolean;
+  onWorkspaceSelect: (slug: string, id: string) => void;
+  onCreateWorkspace: () => void; // Added prop type
 }) {
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { scrollProgress, updateScrollProgress } = useScrollProgress(scrollRef);
+  const router = useRouter();
 
   const href = useCallback(
     (slug: string) => {
@@ -206,19 +255,18 @@ function WorkspaceList({
   );
 
   const handleWorkspaceSelect = useCallback(
-    (slug: string) => {
-      workspaceStorage.setLastSelected(slug);
+    async (slug: string, id: string) => {
+      await onWorkspaceSelect(slug, id);
+      router.push(`/${slug}/overview`);
       setOpenPopover(false);
     },
-    [setOpenPopover]
+    [onWorkspaceSelect, setOpenPopover]
   );
 
   const handleCreateWorkspace = useCallback(() => {
-    setOpenPopover(false);
-    // TODO: Implement workspace creation modal
-    console.log("Open create workspace modal");
-    // setShowAddWorkspaceModal(true);
-  }, [setOpenPopover]);
+    onCreateWorkspace();
+    setOpenPopover(false); // Close the popover when creating a workspace
+  }, [onCreateWorkspace, setOpenPopover]);
 
   return (
     <div className="relative w-full">
@@ -253,14 +301,14 @@ function WorkspaceList({
                 />
               )}
             </div>
-            {sessionStatus ? (
+            {isLoading ? (
               <div className="flex-1 min-w-0">
                 <div className="h-4 w-20 bg-neutral-200 animate-pulse rounded" />
               </div>
             ) : (
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium leading-5 text-neutral-900">
-                  Personal Account
+                  {selected.name}
                 </div>
               </div>
             )}
@@ -281,24 +329,16 @@ function WorkspaceList({
               <span className="block truncate text-sm">Settings</span>
             </Link>
 
-            <Link
-              href={`/${selected.slug}/settings/people`}
-              className="flex w-full items-center gap-x-2 rounded-md px-2 py-1.5 text-neutral-700 outline-none transition-all duration-75 hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-black/50 active:bg-neutral-200/80"
-              onClick={() => setOpenPopover(false)}
-            >
-              <UserPlus className="size-4 text-neutral-500" />
-              <span className="block truncate text-sm">Invite members</span>
-            </Link>
-            {/* {selected.slug !== "/" && selected.slug !== "personal" && (
+            {selected.slug !== "/" && selected.slug !== "personal" && (
               <Link
-                href={`/${selected.slug}/settings/people`}
+                href={`/${selected.slug}/settings/members`}
                 className="flex w-full items-center gap-x-2 rounded-md px-2 py-1.5 text-neutral-700 outline-none transition-all duration-75 hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-black/50 active:bg-neutral-200/80"
                 onClick={() => setOpenPopover(false)}
               >
                 <UserPlus className="size-4 text-neutral-500" />
                 <span className="block truncate text-sm">Invite members</span>
               </Link>
-            )} */}
+            )}
           </div>
         </div>
 
@@ -328,16 +368,17 @@ function WorkspaceList({
                 const workspaceImage = logo || "";
 
                 return (
-                  <Link
+                  <button
                     key={slug}
                     className={cn(
                       "relative flex w-full items-center gap-x-2 rounded-md px-2 py-1.5 transition-all duration-75",
                       "hover:bg-neutral-200/50 active:bg-neutral-200/80",
                       "outline-none focus-visible:ring-2 focus-visible:ring-black/50",
-                      isActive && "bg-neutral-200/50"
+                      isActive && "bg-neutral-200/50",
+                      isLoading && "opacity-50 cursor-not-allowed"
                     )}
-                    href={href(slug)}
-                    onClick={() => handleWorkspaceSelect(slug)}
+                    onClick={() => handleWorkspaceSelect(slug, id)}
+                    disabled={isLoading || isActive}
                   >
                     <div className="size-6 shrink-0 rounded-full bg-neutral-200 flex items-center justify-center overflow-hidden">
                       {workspaceImage ? (
@@ -352,7 +393,7 @@ function WorkspaceList({
                         </span>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 text-left">
                       <span className="block truncate text-sm leading-5 text-neutral-900">
                         {name}
                       </span>
@@ -362,14 +403,13 @@ function WorkspaceList({
                         <Check2 className="size-4" aria-hidden="true" />
                       </span>
                     )}
-                  </Link>
+                  </button>
                 );
               })
             )}
             <button
-              // href={`/${selected.slug}/settings/people`}
-              className=" cursor-pointer flex w-full items-center gap-x-2 rounded-md px-2 py-1.5 text-neutral-700 outline-none transition-all duration-75 hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-black/50 active:bg-neutral-200/80"
-              onClick={() => setOpenPopover(false)}
+              className="cursor-pointer flex w-full items-center gap-x-2 rounded-md px-2 py-1.5 text-neutral-700 outline-none transition-all duration-75 hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-black/50 active:bg-neutral-200/80"
+              onClick={handleCreateWorkspace}
             >
               <Plus className="size-4 text-neutral-500" />
               <span className="block truncate text-sm">Create workspace</span>

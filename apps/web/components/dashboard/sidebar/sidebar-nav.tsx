@@ -174,7 +174,7 @@ export function SidebarNav<T extends Record<any, any>>({
                                 <div
                                   className={cn(
                                     "text-content-muted  bg-bg-emphasis font-semibold flex size-6 items-center justify-center rounded-lg",
-                                    "group-hover:bg-bg-inverted/10 group-hover:text-content-subtle transition-[transform,background-color,color] duration-150 group-hover:-translate-x-0.5"
+                                    "group-hover:bg-inverted/10 group-hover:text-content-subtle transition-[transform,background-color,color] duration-150 group-hover:-translate-x-0.5"
                                   )}
                                 >
                                   <ChevronLeft className="size-3 [&_*]:stroke-2" />
@@ -389,7 +389,7 @@ function NavItem({ item }: { item: NavItemType | NavSubItemType }) {
             ? "bg-blue-100/50 font-medium text-blue-600 hover:bg-blue-100/80 active:bg-blue-100"
             : locked
               ? "cursor-not-allowed opacity-75"
-              : "hover:bg-bg-inverted/5 font-normal active:bg-bg-inverted/10"
+              : "hover:bg-neutral-200/70 font-normal active:bg-neutral-200/70"
         )}
         aria-disabled={locked}
       >

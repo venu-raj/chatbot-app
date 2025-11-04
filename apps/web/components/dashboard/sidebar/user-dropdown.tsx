@@ -29,6 +29,8 @@ export function UserDropdown() {
   const [session, setSession] = useState<Session | null>(null);
   const [openPopover, setOpenPopover] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { data: activeOrganization, isPending: organizationPending } =
+    authClient.useActiveOrganization();
 
   useEffect(() => {
     // Fetch session on client side
@@ -59,6 +61,7 @@ export function UserDropdown() {
       {
         label: "Account settings",
         icon: User,
+        // href: "/account/settings",
         href: "/account/settings",
         onClick: () => setOpenPopover(false),
       },

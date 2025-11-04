@@ -3,12 +3,14 @@
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebarNav } from "@/components/dashboard/sidebar/app-sidebar-nav";
 import { MainNav } from "@/components/dashboard/sidebar/main-nav";
+import Toolbar from "@/components/toolbar/toolbar";
 import { ReactNode } from "react";
 import { toast } from "sonner";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <AuthGuard>
+    <>
+      {" "}
       <div className="min-h-screen w-full bg-white">
         {/* <UpgradeBanner /> */}
         <MainNav
@@ -24,6 +26,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           {children}
         </MainNav>
       </div>
-    </AuthGuard>
+      <Toolbar show={["onboarding"]} />
+    </>
   );
 }

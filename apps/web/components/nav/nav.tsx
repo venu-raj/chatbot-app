@@ -16,7 +16,11 @@ import { MaxWidthWrapper } from "@workspace/ui/components/global/max-width-wrapp
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
 import { LayoutGroup } from "motion/react";
-import { useListOrganizations, useSession } from "@/config/auth/client";
+import {
+  authClient,
+  useListOrganizations,
+  useSession,
+} from "@/config/auth/client";
 import { buttonVariants } from "@workspace/ui/components/button";
 
 export type NavTheme = "light" | "dark";
@@ -102,6 +106,8 @@ export function Nav({
   }
   const { data: user, isPending } = useSession();
   const { data } = useListOrganizations();
+  const { data: activeOrganization, isPending: organizationPending } =
+    authClient.useActiveOrganization();
 
   console.log(data);
 
@@ -189,9 +195,11 @@ export function Nav({
               </NavigationMenuPrimitive.Root>
 
               <div className="hidden grow basis-0 justify-end gap-2 lg:flex">
-                {user && Object.keys(user).length > 0 ? (
+                {user &&
+                !organizationPending &&
+                Object.keys(user).length > 0 ? (
                   <Link
-                    href={"/dashboard/overview"}
+                    href={`${activeOrganization?.slug}/overview`}
                     className={cn(
                       buttonVariants({ variant: "primary" }),
                       "flex h-8 items-center rounded-lg border px-4 text-sm",
@@ -201,7 +209,7 @@ export function Nav({
                   >
                     Dashboard
                   </Link>
-                ) : !isPending ? (
+                ) : !isPending && !organizationPending ? (
                   <>
                     <Link
                       href="/login"

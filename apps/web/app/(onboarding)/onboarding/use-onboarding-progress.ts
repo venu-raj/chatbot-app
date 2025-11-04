@@ -77,7 +77,7 @@ export function useOnboardingProgress() {
       await setOnboardingProgress("completed");
 
       // After finish, redirect to dashboard
-      router.push("/dashboard");
+      router.push(`/${slug}/overview`);
     } catch (error) {
       toast.error("Failed to finish onboarding. Please try again.");
       console.error("Failed to finish onboarding", error);
